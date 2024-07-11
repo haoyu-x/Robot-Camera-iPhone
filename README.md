@@ -1,5 +1,5 @@
 # Robot-Camera-iPhone
-use iPhone as robot camera
+Use iPhone as robot camera.
 
 Follow record3d.app to download record3d in your iphone.
 
