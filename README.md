@@ -1,3 +1,6 @@
 # Robot-Camera-iPhone
 use iPhone as robot camera
-follow record3d.app to download record3d in your iphone.
+
+Follow record3d.app to download record3d in your iphone.
+
+Run the srcipt for point cloud streaming in world frame.
