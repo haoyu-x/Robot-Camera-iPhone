@@ -17,6 +17,7 @@ from scipy.spatial.transform import Rotation
 
 import time
 
+from datetime import datetime
 
 # ----------------------------------------------------------------------------
 # -                        Open3D: www.open3d.org                            -
@@ -44,6 +45,8 @@ class DemoApp:
         self.DEVICE_TYPE__LIDAR = 1
         self.rgb_width = 720
         self.rgb_height = 960
+        self.depth_width = 192
+        self.depth_height = 256
 
         self.init_camera_pose = None
         # Create a Visualizer object
@@ -52,9 +55,10 @@ class DemoApp:
         self.vis.get_view_control()
 
         # Create a PointCloud object
+
         self.pcd = o3d.geometry.PointCloud()
 
-
+        self.save_pcds = []
 
         # self.rerunapp = rerunio.Application()
 
@@ -94,18 +98,18 @@ class DemoApp:
     def reshape_depth_and_conf(self, depth_image, confidence, rgb_image):
 
 
-        pil_depth = Image.fromarray(depth_image)
-        reshaped_depth = pil_depth.resize((self.rgb_width, self.rgb_height))
-        reshaped_depth = np.asarray(reshaped_depth)
+        # pil_depth = Image.fromarray(depth_image)
+        # reshaped_depth = pil_depth.resize((self.depth_width, self.depth_height))
+        reshaped_depth = np.asarray(depth_image)
 
 
         conf_img = Image.fromarray(confidence)
-        reshaped_conf = conf_img.resize((self.rgb_width, self.rgb_height))
+        reshaped_conf = conf_img.resize((self.depth_width, self.depth_height))
         reshaped_conf = np.asarray(reshaped_conf)
       
       
         rgb = Image.fromarray(rgb_image)
-        reshaped_rgb = rgb.resize((self.rgb_width, self.rgb_height))
+        reshaped_rgb = rgb.resize((self.depth_width, self.depth_height))
         reshaped_rgb = np.asarray(reshaped_rgb)
         
 
@@ -134,13 +138,15 @@ class DemoApp:
             rgb_o3d, depth_o3d, convert_rgb_to_intensity=False
         )
 
+
+        print("intrinsics", intrinsics)
         camera_intrinsics = o3d.camera.PinholeCameraIntrinsic(
-            width=int(self.rgb_width),
-            height=int(self.rgb_height),
-            fx=intrinsics[0, 0],
-            fy=intrinsics[1, 1],
-            cx=intrinsics[0, 2],
-            cy=intrinsics[1, 2],
+            width=int(self.depth_width),
+            height=int(self.depth_height),
+            fx=intrinsics[0, 0] * self.depth_width / self.rgb_width,
+            fy=intrinsics[1, 1] * self.depth_height / self.rgb_height,
+            cx=intrinsics[0, 2] * self.depth_width / self.rgb_width,
+            cy=intrinsics[1, 2] * self.depth_height / self.rgb_height,
         )
 
 
@@ -157,8 +163,9 @@ class DemoApp:
 
         self.pcd.transform(np.linalg.inv(self.init_camera_pose))
 
+        # save pcd
 
-
+        self.save_pcds.append(self.pcd)
 
 
 
@@ -204,10 +211,10 @@ class DemoApp:
     def start_processing_stream(self):
 
         frame_count = 0
-        frames = []
         prev_pose_matrix = None
         
-        while True:                  
+        while True:
+                d = time.time() 
                 self.event.wait()  # Wait for new frame to arrive
                 # Copy the newly arrived RGBD frame
                 depth = self.session.get_depth_frame()
@@ -224,12 +231,13 @@ class DemoApp:
                 # this is the camera pose reading from iphone with respect to the world frame,
                 # but the world frame is not the same as the inial frame camera frame when this script starts
                 camera_pose = self.session.get_camera_pose() 
-            
+                # print("camera_pose", camera_pose.tx, camera_pose.ty, camera_pose.tz, camera_pose.qx, camera_pose.qy, camera_pose.qz, camera_pose.qw)   
+
                 extrinsic = self.pose_to_extrinsic_matrix(camera_pose)                
                 intrinsic_mat = self.get_intrinsic_mat_from_coeffs(self.session.get_intrinsic_mat())
 
             
-
+                # print("instrinsic", intrinsic_mat)
 
                 if self.init_camera_pose is None:
 
@@ -249,6 +257,7 @@ class DemoApp:
                     self.vis.add_geometry(self.camera_frame_mesh.transform(self.init_camera_pose))
                     self.vis.add_geometry(self.pcd)
 
+
                 else:
                     # Update visualization
                     self.get_global_xyz(depth, rgb, confidence, intrinsic_mat, extrinsic, depth_scale=1000.0, only_confident=False)
@@ -259,12 +268,18 @@ class DemoApp:
                     self.vis.poll_events()
                     self.vis.update_renderer()
 
+                # print(np.array(self.pcd.points).shape)
 
 
                 frame_count += 1
                 prev_pose_matrix = extrinsic
 
+                # time.sleep(0.05)
+
                 self.event.clear()
+
+
+                print(1/(time.time() - d))
 
    
 
